@@ -1,0 +1,134 @@
+﻿{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "EnvironmentName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10
+    },
+    "WebFarmSKU": {
+      "type": "string",
+      "allowedValues": [
+        "Standard",
+        "Premium"
+      ],
+      "defaultValue": "Standard"
+    },
+    "WebFarmWorkersSize": {
+      "type": "string",
+      "allowedValues": [
+        "Small",
+        "Medium",
+        "Large"
+      ],
+      "defaultValue": "Small"
+    },
+    "WebFarmWorkersCount": {
+      "type": "int",
+      "allowedValues": [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ],
+      "defaultValue": 1
+    },
+    "SqlServerAdminLogin": {
+      "type": "string",
+      "minLength": 1
+    },
+    "SqlServerAdminPassword": {
+      "type": "securestring",
+      "minLength": 8
+    },
+    "StorageType": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_ZRS",
+        "Standard_GRS",
+        "Standard_RAGRS"
+      ]
+    }
+  },
+  "variables": {
+    "WebFarmName": "[concat('WebFarm-', parameters('EnvironmentName'), '-', uniqueString(resourceGroup().id))]",
+    "SqlServerName": "[toLower(concat('SqlServer-', parameters('EnvironmentName'), '-', uniqueString(resourceGroup().id)))]",
+    "CdnProfileName": "[concat('Cdn-', parameters('EnvironmentName'), '-', uniqueString(resourceGroup().id))]",
+    "StorageName": "[toLower(concat(parameters('EnvironmentName'), uniqueString(resourceGroup().id)))]"
+  },
+  "resources": [
+    {
+      "name": "[variables('WebFarmName')]",
+      "type": "Microsoft.Web/serverfarms",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-06-01",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "WebFarm"
+      },
+      "properties": {
+        "name": "[variables('WebFarmName')]",
+        "sku": "[parameters('WebFarmSKU')]",
+        "workerSize": "[parameters('WebFarmWorkersSize')]",
+        "numberOfWorkers": "[parameters('WebFarmWorkersCount')]"
+      }
+    },
+    {
+      "name": "[variables('SqlServerName')]",
+      "type": "Microsoft.Sql/servers",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01-preview",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "SqlServer"
+      },
+      "properties": {
+        "administratorLogin": "[parameters('SqlServerAdminLogin')]",
+        "administratorLoginPassword": "[parameters('SqlServerAdminPassword')]"
+      },
+      "resources": [
+        {
+          "name": "AllowAllWindowsAzureIps",
+          "type": "firewallrules",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2014-04-01-preview",
+          "dependsOn": [
+            "[concat('Microsoft.Sql/servers/', variables('SqlServerName'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "0.0.0.0"
+          }
+        }
+      ]
+    },
+    {
+      "name": "[variables('CdnProfileName')]",
+      "type": "Microsoft.Cdn/profiles",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-01",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "CdnProfile"
+      },
+      "properties": {
+        "sku": {
+          "name": "Standard"
+        }
+      }
+    },
+    {
+      "name": "[variables('StorageName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "Storage"
+      },
+      "properties": {
+        "accountType": "[parameters('StorageType')]"
+      }
+    }
+  ],
+  "outputs": {
+  }
+}
