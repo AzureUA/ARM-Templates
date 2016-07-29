@@ -29,6 +29,8 @@
       <Visible>False</Visible>
     </None>
     <Content Include="Deploy-AzureResourceGroup.ps1" />
+    <None Include="Templates\WebApp\azuredeploy-webapp.json" />
+    <None Include="Templates\WebApp\azuredeploy-webapp.parameters.json" />
     <None Include="Templates\WebFarm\azuredeploy.json" />
     <None Include="Templates\WebFarm\azuredeploy.parameters.json" />
   </ItemGroup>

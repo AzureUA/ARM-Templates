@@ -1,0 +1,245 @@
+﻿{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "EnvironmentName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10,
+      "metadata": {
+        "description": "need to be unique, please enter only alphabet characters"
+      }
+    },
+    "WebAppName": {
+      "type": "string",
+      "minLength": 5
+    },
+    "SqlServerAdminLogin": {
+      "type": "string",
+      "minLength": 1
+    },
+    "SqlServerAdminPassword": {
+      "type": "securestring",
+      "minLength": 8
+    }
+  },
+  "variables": {
+    "WebFarmName": "[concat('WebFarm-', parameters('EnvironmentName'), '-', uniqueString(resourceGroup().id))]",
+    "EnvironmentWebAppName": "[concat(parameters('WebAppName'), '-', parameters('EnvironmentName'))]",
+    "StorageAccountName": "[toLower(concat(parameters('EnvironmentName'), 'storage', uniqueString(resourceGroup().id)))]",
+    "AppInsightName": "[concat(variables('EnvironmentWebAppName'), '-ApplicationInsight')]",
+    "SqlServerName": "[toLower(concat('SqlServer-', parameters('EnvironmentName'), '-', uniqueString(resourceGroup().id)))]"
+  },
+  "resources": [
+    {
+      "name": "[variables('EnvironmentWebAppName')]",
+      "type": "Microsoft.Web/sites",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-08-01",
+      "dependsOn": [
+      ],
+      "tags": {
+        "[concat('hidden-related:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('WebFarmName'))]": "Resource",
+        "displayName": "Web App"
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms/', variables('WebFarmName'))]"
+      },
+      "resources": [
+        {
+          "name": "appsettings",
+          "type": "config",
+          "apiVersion": "2015-08-01",
+          "dependsOn": [
+            "[concat('Microsoft.Web/sites/', variables('EnvironmentWebAppName'))]"
+          ],
+          "tags": {
+            "displayName": "AppConfig"
+          },
+          "properties": {
+            "InstrumentationKey": "[reference(resourceId('Microsoft.Insights/components', variables('AppInsightName')), '2014-08-01').instrumentationKey]"
+          }
+        },
+        {
+          "name": "connectionstrings",
+          "type": "config",
+          "apiVersion": "2015-08-01",
+          "dependsOn": [
+            "[concat('Microsoft.Web/sites/', variables('EnvironmentWebAppName'))]"
+          ],
+          "tags": {
+            "displayName": "Connection Strings"
+          },
+          "properties": {
+            "SqlDatabase": {
+              "value": "[concat('Server=', variables('SqlServerName'), '.database.windows.net;Database=', parameters('WebAppName') , ';User Id=', parameters('SqlServerAdminLogin'), ';Password=', parameters('SqlServerAdminPassword'), ';')]",
+              "type": "SQLAzure"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "[concat('LongHttpQueue ', variables('EnvironmentWebAppName'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01",
+      "dependsOn": [
+      ],
+      "tags": {
+        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('WebFarmName'))]": "Resource",
+        "displayName": "LongHttpQueue on WebApp"
+      },
+      "properties": {
+        "name": "[concat('LongHttpQueue ', variables('WebFarmName'))]",
+        "description": "[concat('The HTTP queue for the instances of ', variables('WebFarmName'), ' has a large number of pending requests.')]",
+        "isEnabled": false,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('WebFarmName'))]",
+            "metricName": "HttpQueueLength"
+          },
+          "operator": "GreaterThan",
+          "threshold": 100,
+          "windowSize": "PT5M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    },
+    {
+      "name": "[concat('ServerErrors ', variables('EnvironmentWebAppName'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01",
+      "dependsOn": [
+        "[concat('Microsoft.Web/sites/', variables('EnvironmentWebAppName'))]"
+      ],
+      "tags": {
+        "displayName": "ServerErrors on WebApp"
+      },
+      "properties": {
+        "name": "[concat('ServerErrors ', variables('EnvironmentWebAppName'))]",
+        "description": "[concat(variables('EnvironmentWebAppName'), ' has some server errors, status code 5xx.')]",
+        "isEnabled": true,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('EnvironmentWebAppName'))]",
+            "metricName": "Http5xx"
+          },
+          "operator": "GreaterThan",
+          "threshold": 0,
+          "windowSize": "PT5M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    },
+    {
+      "name": "[concat('ForbiddenRequests ', variables('EnvironmentWebAppName'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01",
+      "dependsOn": [
+        "[concat('Microsoft.Web/sites/', variables('EnvironmentWebAppName'))]"
+      ],
+      "tags": {
+        "displayName": "ForbiddenRequests on WebApp"
+      },
+      "properties": {
+        "name": "[concat('ForbiddenRequests ', variables('EnvironmentWebAppName'))]",
+        "escription\": ": "[concat(variables('EnvironmentWebAppName'), ' has some requests that are forbidden, status code 403.')]",
+        "sEnabled\": ": false,
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('EnvironmentWebAppName'))]",
+            "metricName": "Http403"
+          },
+          "operator": "GreaterThan",
+          "threshold": 0,
+          "windowSize": "PT5M"
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      }
+    },
+    {
+      "name": "[variables('AppInsightName')]",
+      "type": "Microsoft.Insights/components",
+      "location": "Central US",
+      "apiVersion": "2014-04-01",
+      "dependsOn": [
+      ],
+      "tags": {
+        "displayName": "Application Insight"
+      },
+      "properties": {
+        "applicationId": "[variables('EnvironmentWebAppName')]"
+      }
+    },
+    {
+      "name": "[variables('SqlServerName')]",
+      "type": "Microsoft.Sql/servers",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2014-04-01-preview",
+      "dependsOn": [],
+      "tags": {
+        "displayName": "SqlServer"
+      },
+      "properties": {
+        "administratorLogin": "[parameters('SqlServerAdminLogin')]",
+        "administratorLoginPassword": "[parameters('SqlServerAdminPassword')]"
+      },
+      "resources": [
+        {
+          "name": "AllowAllWindowsAzureIps",
+          "type": "firewallrules",
+          "location": "[resourceGroup().location]",
+          "apiVersion": "2014-04-01-preview",
+          "dependsOn": [
+            "[concat('Microsoft.Sql/servers/', variables('SqlServerName'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "0.0.0.0"
+          }
+        },
+        {
+          "apiVersion": "2014-04-01-preview",
+          "location": "[resourceGroup().location]",
+          "name": "[parameters('WebAppName')]",
+          "dependsOn": [
+            "[concat('Microsoft.Sql/servers/', variables('SqlServerName'))]"
+          ],
+          "properties": {
+            "collation": "SQL_Latin1_General_CP1_CI_AS",
+            "edition": "Standard",
+            "maxSizeBytes": "1073741824",
+            "serviceLevelObjective": "S0"
+          },
+          "tags": {
+            "displayName": "Sql Database"
+          },
+          "type": "databases"
+        }
+      ]
+    }
+  ],
+  "outputs": {
+  }
+}
