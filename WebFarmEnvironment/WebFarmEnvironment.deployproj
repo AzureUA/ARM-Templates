@@ -31,8 +31,8 @@
     <Content Include="Deploy-AzureResourceGroup.ps1" />
     <None Include="Templates\WebApp\azuredeploy-webapp.json" />
     <None Include="Templates\WebApp\azuredeploy-webapp.parameters.json" />
-    <None Include="Templates\WebFarm\azuredeploy.json" />
-    <None Include="Templates\WebFarm\azuredeploy.parameters.json" />
+    <None Include="Templates\WebFarm\azuredeploy-webfarm.json" />
+    <None Include="Templates\WebFarm\azuredeploy-webfarm.parameters.json" />
   </ItemGroup>
   <Target Name="GetReferenceAssemblyPaths" />
 </Project>
